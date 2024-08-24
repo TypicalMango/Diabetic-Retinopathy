@@ -6,3 +6,6 @@ Train them and save them locally in path (from root):
 - models/efficientnet_model.h5
 
 [dataset](https://www.kaggle.com/datasets/sovitrath/diabetic-retinopathy-224x224-gaussian-filtered)
+
+## Status
+- Currently, only VGG16 explanation is functional
