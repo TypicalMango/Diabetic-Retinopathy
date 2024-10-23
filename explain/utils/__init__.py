@@ -90,3 +90,60 @@ def visualise_layer_outputs(model_name, model, img_path, conv_layer_name_list, r
     display_grad_cam(layer_image_list, conv_layer_name_list, rows, cols)
     plt.axis('off')
     plt.imshow(cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB))
+
+# Function to compute gradients with respect to the input
+def compute_gradients(model, img_array):
+    img_tensor = tf.convert_to_tensor(img_array)  # Convert NumPy array to tf.Tensor
+    with tf.GradientTape() as tape:
+        tape.watch(img_tensor)  # Watch the tensor for gradient computation
+        predictions = model(img_tensor)
+        loss = predictions[:, tf.argmax(predictions[0])]
+    grads = tape.gradient(loss, img_tensor)
+    return grads
+
+def apply_smoothgrad(model, img_array, num_samples=50, noise_level=0.1):
+    # Compute the standard deviation of the noise based on noise level
+    stdev = noise_level * (np.max(img_array) - np.min(img_array))
+    smooth_grad = np.zeros_like(img_array)
+    
+    for _ in range(num_samples):
+        # Add noise to the image
+        noise = np.random.normal(0, stdev, img_array.shape)
+        noisy_img = img_array + noise
+        
+        # Get gradients for the noisy image
+        grads = compute_gradients(model, noisy_img)
+        
+        # Accumulate the gradients
+        smooth_grad += grads.numpy()
+    
+    # Average the gradients
+    smooth_grad /= num_samples
+    return smooth_grad
+
+def display_smoothgrad(model, img_array, img_path):
+    smooth_grad = apply_smoothgrad(model, img_array, num_samples=50, noise_level=0.1)
+    smooth_grad = np.squeeze(smooth_grad)
+    smooth_grad = np.mean(smooth_grad, axis=-1)
+    
+    # Normalize for visualization
+    smooth_grad = np.maximum(smooth_grad, 0)
+    smooth_grad /= smooth_grad.max()
+    
+    heatmap = cv2.resize(smooth_grad, (224, 224))
+    heatmap = np.uint8(255 * heatmap)
+    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+    
+    img = cv2.imread(img_path)
+    overlayed_img = cv2.addWeighted(img, 0.6, heatmap, 0.4, 0)
+    
+    plt.imshow(cv2.cvtColor(overlayed_img, cv2.COLOR_BGR2RGB))
+    plt.axis('off')
+    plt.show()
+
+def visualise_smoothgrad(model_name, model, img_path, conv_layer_name_list, rows=5, cols=5, mod_factor=1):
+    img_array = preprocess_image(img_path, model_name)
+    layer_image_list = layer_image_grad_cam(model, conv_layer_name_list, img_array, img_path, mod_factor)
+    display_smoothgrad(model, img_array, img_path)
+    
+    
